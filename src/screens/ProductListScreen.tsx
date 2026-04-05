@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text, Image, Dimensions, Alert, ScrollView, TextInput } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, Image, Dimensions, ScrollView, TextInput, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -16,6 +16,10 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
   // 1. Thêm State để lưu từ khóa tìm kiếm
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // States cho Custom Delete Dialog (Sửa lỗi xóa trên Web)
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
   // Kiểm tra quyền Admin
   const currentUserEmail = auth.currentUser?.email?.toLowerCase();
@@ -58,11 +62,28 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
     navigation.replace('Login');
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert('Xác nhận', 'Bạn muốn xóa sản phẩm này?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Xóa', style: 'destructive', onPress: () => productService.deleteProduct(id) },
-    ]);
+  // --- KÍCH HOẠT HỘP THOẠI XÓA (Thay vì dùng Alert) ---
+  const triggerDelete = (id: string) => {
+    setProductToDelete(id);
+    setDeleteDialogVisible(true);
+  };
+
+  // --- THỰC THI XÓA KHI BẤM XÁC NHẬN ---
+  const confirmDelete = async () => {
+    if (productToDelete) {
+      try {
+        await productService.deleteProduct(productToDelete);
+      } catch (error: any) {
+        if (Platform.OS === 'web') {
+          window.alert("Lỗi khi xóa: " + error.message);
+        } else {
+          alert("Lỗi khi xóa: " + error.message);
+        }
+      } finally {
+        setDeleteDialogVisible(false);
+        setProductToDelete(null);
+      }
+    }
   };
 
   return (
@@ -128,7 +149,8 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
                   <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('AddEditProduct', { productToEdit: item })}>
                     <Text style={styles.btnText}>Sửa</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.idsanpham)}>
+                  {/* GỌI HÀM TRIGGER DELETE Ở ĐÂY */}
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => triggerDelete(item.idsanpham)}>
                     <Text style={styles.btnText}>Xóa</Text>
                   </TouchableOpacity>
                 </View>
@@ -143,6 +165,35 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
           <Text style={styles.fabIcon}>+</Text>
         </TouchableOpacity>
       )}
+
+      {/* --- MODAL XÓA SẢN PHẨM CHUẨN WEB --- */}
+      <Modal
+        visible={deleteDialogVisible}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.dialogContent}>
+            <Text style={styles.dialogTitle}>XÁC NHẬN XÓA</Text>
+            <Text style={styles.dialogMessage}>Bạn có chắc chắn xóa sản phẩm này không?</Text>
+            <View style={styles.dialogButtons}>
+              <TouchableOpacity 
+                style={styles.dialogBtnCancel} 
+                onPress={() => setDeleteDialogVisible(false)}
+              >
+                <Text style={styles.dialogBtnTextCancel}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.dialogBtnDelete} 
+                onPress={confirmDelete}
+              >
+                <Text style={styles.dialogBtnTextDelete}>Xóa ngay</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -309,4 +360,31 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   fabIcon: { fontSize: 32, color: "#ffffff", fontWeight: "bold" },
+
+  // --- STYLE MODAL CHUẨN WEB ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialogContent: { 
+    backgroundColor: neonTheme.colors.bgCard, 
+    borderWidth: 2, 
+    borderColor: neonTheme.colors.borderMagentaThin, 
+    borderRadius: 15, 
+    padding: 25, 
+    width: '85%', 
+    maxWidth: 400, 
+    alignItems: 'center', 
+    boxShadow: `0px 0px 15px ${neonTheme.colors.borderMagentaThin}66`,
+    elevation: 10 
+  },
+  dialogTitle: { fontSize: 20, fontWeight: 'bold', color: neonTheme.colors.neonMagenta, marginBottom: 15, textAlign: 'center' },
+  dialogMessage: { fontSize: 16, color: neonTheme.colors.btnTextColorLight, textAlign: 'center', marginBottom: 25, lineHeight: 24 },
+  dialogButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+  dialogBtnCancel: { flex: 1, backgroundColor: neonTheme.colors.bgInput, borderWidth: 1, borderColor: neonTheme.colors.textTertiaryGrey, paddingVertical: 12, borderRadius: 8, marginRight: 10, alignItems: 'center' },
+  dialogBtnDelete: { flex: 1, backgroundColor: neonTheme.colors.btnLogoutRed, paddingVertical: 12, borderRadius: 8, marginLeft: 10, alignItems: 'center' },
+  dialogBtnTextCancel: { color: neonTheme.colors.btnTextColorLight, fontSize: 16, fontWeight: 'bold' },
+  dialogBtnTextDelete: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' }
 });
