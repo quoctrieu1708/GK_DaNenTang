@@ -28,7 +28,7 @@ export const LoginScreen = ({ navigation }: any) => {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.titleText}>Login</Text>
+        <Text style={styles.titleText}>ĐĂNG NHẬP</Text>
 
         <View style={styles.formCard}>
           <Text style={styles.label}>Email</Text>
@@ -55,6 +55,14 @@ export const LoginScreen = ({ navigation }: any) => {
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
             <Text style={styles.loginButtonText}>Đăng Nhập</Text>
           </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 25 }}>
+            <Text style={{ color: neonTheme.colors.textTertiaryGrey, fontSize: 16 }}>Chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={{ color: neonTheme.colors.neonMagenta, fontSize: 16, fontWeight: 'bold' }}>Đăng ký ngay</Text>
+            </TouchableOpacity>
+          </View>
+
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -80,7 +88,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   titleText: {
-    fontSize: width * 0.08,
+    fontSize: 24,
     fontWeight: "bold",
     color: neonTheme.colors.neonMagenta,
     textTransform: "uppercase",
