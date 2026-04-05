@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text, Image, Dimensions, Alert, ScrollView } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, Image, Dimensions, Alert, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -14,12 +14,12 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ProductList
 export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
+  // 1. Thêm State để lưu từ khóa tìm kiếm
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // --- BƯỚC 1: KIỂM TRA QUYỀN ADMIN ---
-  // Lấy email của người đang đăng nhập hiện tại và kiểm tra
+  // Kiểm tra quyền Admin
   const currentUserEmail = auth.currentUser?.email?.toLowerCase();
   const isAdmin = currentUserEmail === 'admin@gmail.com';
-  // ------------------------------------
 
   useEffect(() => {
     const unsubscribe = productService.subscribeToProducts(setProducts);
@@ -31,10 +31,27 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
     return ['Tất cả', ...uniqueCategories];
   }, [products]);
 
+  // 2. Nâng cấp bộ lọc: Lọc kết hợp CẢ Category VÀ Search Query
   const filteredProducts = useMemo(() => {
-    if (selectedCategory === 'Tất cả') return products;
-    return products.filter(p => p.loaisp === selectedCategory);
-  }, [products, selectedCategory]);
+    let result = products;
+
+    // Bước A: Lọc theo danh mục trước
+    if (selectedCategory !== 'Tất cả') {
+      result = result.filter(p => p.loaisp === selectedCategory);
+    }
+
+    // Bước B: Lọc tiếp theo từ khóa tìm kiếm (nếu có nhập)
+    if (searchQuery.trim() !== '') {
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      result = result.filter(p => 
+        // Tìm trong tên sản phẩm HOẶC loại sản phẩm
+        p.tensp.toLowerCase().includes(lowerCaseQuery) ||
+        p.loaisp.toLowerCase().includes(lowerCaseQuery)
+      );
+    }
+
+    return result;
+  }, [products, selectedCategory, searchQuery]);
 
   const handleLogout = () => {
     auth.signOut();
@@ -51,13 +68,23 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        {/* Đổi tiêu đề cho ngầu: Admin thì "Quản lý", User thì "Cửa hàng" */}
         <Text style={styles.headerTitle}>
           {isAdmin ? "Quản lý sản phẩm" : "Danh sách sản phẩm"}
         </Text>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* 3. Thêm Giao diện Thanh tìm kiếm */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="🔍 Tìm kiếm sản phẩm..."
+          placeholderTextColor={neonTheme.colors.inputPlaceholderGrey}
+          value={searchQuery}
+          onChangeText={setSearchQuery} // Cập nhật chữ mỗi khi gõ
+        />
       </View>
 
       <View style={styles.categoryContainer}>
@@ -77,44 +104,45 @@ export const ProductListScreen = ({ navigation }: { navigation: NavigationProp }
         </ScrollView>
       </View>
 
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={item => item.idsanpham}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={{ uri: item.hinhanh || 'https://via.placeholder.com/150' }} style={styles.productImage} />
-            <View style={styles.productDetails}>
-              <Text style={styles.productName}>{item.tensp}</Text>
-              <Text style={styles.productType}>Loại: {item.loaisp}</Text>
-              <Text style={styles.productPrice}>{item.gia.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} VNĐ</Text>
-            </View>
-
-            {/* --- BƯỚC 2: CHỈ HIỂN THỊ NÚT SỬA/XÓA NẾU LÀ ADMIN --- */}
-            {isAdmin && (
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('AddEditProduct', { productToEdit: item })}>
-                  <Text style={styles.btnText}>Sửa</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.idsanpham)}>
-                  <Text style={styles.btnText}>Xóa</Text>
-                </TouchableOpacity>
+      {/* Hiển thị thông báo nếu không tìm thấy gì */}
+      {filteredProducts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Không tìm thấy sản phẩm nào!</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          keyExtractor={item => item.idsanpham}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Image source={{ uri: item.hinhanh || 'https://via.placeholder.com/150' }} style={styles.productImage} />
+              <View style={styles.productDetails}>
+                <Text style={styles.productName}>{item.tensp}</Text>
+                <Text style={styles.productType}>Loại: {item.loaisp}</Text>
+                <Text style={styles.productPrice}>{item.gia.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} VNĐ</Text>
               </View>
-            )}
-            {/* ---------------------------------------------------- */}
 
-          </View>
-        )}
-      />
+              {isAdmin && (
+                <View style={styles.cardActions}>
+                  <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('AddEditProduct', { productToEdit: item })}>
+                    <Text style={styles.btnText}>Sửa</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.idsanpham)}>
+                    <Text style={styles.btnText}>Xóa</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+        />
+      )}
 
-      {/* --- BƯỚC 3: CHỈ HIỂN THỊ NÚT THÊM (+) NẾU LÀ ADMIN --- */}
       {isAdmin && (
         <TouchableOpacity style={styles.fabButton} onPress={() => navigation.navigate('AddEditProduct', {})}>
           <Text style={styles.fabIcon}>+</Text>
         </TouchableOpacity>
       )}
-      {/* ---------------------------------------------------- */}
-
     </SafeAreaView>
   );
 };
@@ -145,6 +173,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   logoutText: { fontSize: 14, color: neonTheme.colors.btnTextColorLight },
+
+  // --- STYLE CHO THANH TÌM KIẾM ---
+  searchContainer: {
+    width: "100%",
+    maxWidth: 800,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  searchInput: {
+    backgroundColor: neonTheme.colors.bgInput,
+    borderWidth: 1.5,
+    borderColor: neonTheme.colors.neonCyan,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    color: neonTheme.colors.btnTextColorLight,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 50,
+  },
+  emptyText: {
+    color: neonTheme.colors.textTertiaryGrey,
+    fontSize: 18,
+    fontStyle: "italic",
+  },
+  // ---------------------------------
+
   categoryContainer: {
     width: "100%",
     maxWidth: 800,

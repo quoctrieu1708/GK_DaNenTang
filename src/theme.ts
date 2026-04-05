@@ -1,5 +1,3 @@
-// src/theme.ts
-
 export const neonTheme = {
   colors: {
     // Tông màu Bold Dark (Nền tối)
